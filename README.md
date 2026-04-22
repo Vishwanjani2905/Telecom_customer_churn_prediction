@@ -76,7 +76,8 @@ An intelligent churn prediction platform that tackles all four dimensions of the
 
 ---
 
-## ![End to End ML Pipeline](https://drive.google.com/file/d/13CRaTvWWVqxfWcMg0GqjStprkUEA0vOq/view?usp=drive_link)
+## End to End ML Pipeline
+![End to End ML Pipeline](https://drive.google.com/file/d/13CRaTvWWVqxfWcMg0GqjStprkUEA0vOq/view?usp=drive_link)
 
 ```
 Raw Customer Data
@@ -138,7 +139,8 @@ This ensures the model learns churn patterns effectively rather than defaulting 
 
 ---
 
-## ![System Architecture](https://drive.google.com/file/d/1_5En0JVdoJPMQ6Hk2EINUhqKpOjsK0fm/view?usp=drive_link)
+## System Architecture
+![System Architecture](https://drive.google.com/file/d/1_5En0JVdoJPMQ6Hk2EINUhqKpOjsK0fm/view?usp=drive_link)
 
 ```
 ┌──────────────────────────────────────┐
