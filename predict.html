@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Predict Churn — Telecom Churn Predictor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-brain me-2" style="color:var(--blue)"></i>Churn Prediction</h1>
+  <p>Enter customer details to predict churn risk with AI explanations, survival timeline &amp; lifetime value</p>
+</div>
+
+{% if result and result.demo_mode %}
+<div class="demo-banner d-flex gap-2 align-items-center mb-3">
+  <i class="fas fa-flask"></i>
+  <span><strong>Demo mode</strong> — model.sav not found. Using rule-based simulation. Add your model.sav to the project root for the real ML model.</span>
+</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <!-- ── FORM ── -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">
+        <i class="fas fa-clipboard-list me-2" style="color:var(--blue)"></i>Customer Information
+      </div>
+      <div class="card-body">
+        <form method="POST" id="predictionForm">
+
+          <div class="section-lbl">Usage Metrics</div>
+          <div class="row g-3 mb-4">
+            {% set num_fields = [
+              ('tenure',         'Tenure (months)', '0', '72',  '1',    '12'),
+              ('MonthlyCharges', 'Monthly Charges ($)', '0', '200', '0.01', '65.0'),
+              ('TotalCharges',   'Total Charges ($)',   '0', '20000','0.01', '500.0'),
+            ] %}
+            {% for name, label, mn, mx, step, default in num_fields %}
+            <div class="col-{% if loop.index == 1 %}4{% else %}4{% endif %}">
+              <label class="form-label">{{ label }}</label>
+              <input type="number" class="form-control" name="{{ name }}"
+                     min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
+                     value="{{ result.input_data[name] if result and result.input_data else default }}"
+                     required>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="section-lbl">Account &amp; Services</div>
+          <div class="row g-3">
+            {% for feature, options in categorical_features.items() %}
+            <div class="col-6">
+              <label class="form-label">{{ feature }}</label>
+              <select class="form-select" name="{{ feature }}">
+                {% for option in options %}
+                <option value="{{ option }}"
+                  {% if result and result.input_data and result.input_data.get(feature)|string == option|string %}selected{% endif %}>
+                  {{ option }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="mt-4 d-grid">
+            <button type="submit" class="btn btn-primary py-2" id="submitBtn">
+              <i class="fas fa-brain me-2"></i>Run Prediction
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RESULTS ── -->
+  <div class="col-lg-7">
+
+    {% if result and result.error %}
+    <div class="error-box d-flex gap-3 align-items-start">
+      <i class="fas fa-circle-exclamation fa-lg mt-1"></i>
+      <div>
+        <strong>Prediction Error</strong>
+        <div style="font-size:.875rem;margin-top:.25rem">{{ result.error }}</div>
+        {% if result.detail %}
+        <details style="margin-top:.5rem">
+          <summary style="font-size:.75rem;cursor:pointer">Technical details</summary>
+          <pre style="font-size:.7rem;margin-top:.5rem;overflow:auto;background:var(--red-lt);padding:.75rem;border-radius:6px">{{ result.detail }}</pre>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+
+    {% elif result %}
+
+    <!-- 1 ── Risk Score -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <i class="fas fa-chart-pie me-2" style="color:{{ 'var(--red)' if result.is_high_risk else 'var(--green)' }}"></i>
+        Prediction Result
+        {% if result.demo_mode %}
+        <span class="badge-pill bp-amber ms-2" style="font-size:.65rem">Demo</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-flex-end gap-3 mb-3 flex-wrap">
+          <div class="churn-big {{ 'high' if result.is_high_risk else 'low' }}">
+            {{ result.risk_pct }}%
+          </div>
+          <div style="padding-bottom:.25rem">
+            <div class="badge-pill {{ 'bp-red' if result.is_high_risk else 'bp-green' }} mb-1">
+              {{ 'HIGH CHURN RISK' if result.is_high_risk else 'LOW CHURN RISK' }}
+            </div><br>
+            <span style="font-size:.8125rem;color:var(--text3)">Model confidence: <strong>{{ result.confidence }}%</strong></span>
+          </div>
+        </div>
+        <div class="risk-track mb-4">
+          <div class="risk-fill" style="width:{{ result.risk_pct }}%;background:{% if result.risk_pct >= 65 %}var(--red){% elif result.risk_pct >= 40 %}var(--amber){% else %}var(--green){% endif %}"></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="info-box">
+              <div class="ib-lbl">Estimated churn window</div>
+              <div class="ib-val" style="color:{{ 'var(--red)' if result.is_high_risk else 'var(--green)' }}">{{ result.churn_window }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="info-box">
+              <div class="ib-lbl">Retention priority</div>
+              <div class="ib-val" style="color:{% if result.clv.priority=='Critical' %}var(--red){% elif result.clv.priority=='High' %}var(--blue){% elif result.clv.priority=='Medium' %}var(--amber){% else %}var(--green){% endif %}">
+                {{ result.clv.priority }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 ── Explainable AI -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <i class="fas fa-microscope me-2" style="color:var(--purple)"></i>Explainable AI — Top Drivers
+      </div>
+      <div class="card-body">
+        <p style="font-size:.8125rem;color:var(--text2);margin-bottom:1rem">
+          SHAP-style feature importance — which factors drove this prediction
+        </p>
+        {% for f in result.shap_factors %}
+        <div class="shap-row">
+          <div class="shap-lbl" title="{{ f.label }}">{{ f.label }}</div>
+          <div class="shap-track">
+            <div class="shap-fill"
+              style="width:{{ (f.value * 100)|round|int }}%;background:{{ 'var(--red)' if f.direction=='negative' else 'var(--green)' }}">
+            </div>
+          </div>
+          <div class="shap-val">{{ '+' if f.direction=='negative' else '−' }}{{ (f.value * 100)|round|int }}%</div>
+        </div>
+        {% endfor %}
+        <div class="d-flex gap-3 mt-3" style="font-size:.75rem;color:var(--text3)">
+          <span><span style="display:inline-block;width:8px;height:8px;background:var(--red);border-radius:2px"></span> Increases churn risk</span>
+          <span><span style="display:inline-block;width:8px;height:8px;background:var(--green);border-radius:2px"></span> Reduces churn risk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 ── Churn Timeline -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <i class="fas fa-clock me-2" style="color:var(--amber)"></i>Churn Timeline — Survival Curve
+      </div>
+      <div class="card-body">
+        <p style="font-size:.8125rem;color:var(--text2);margin-bottom:.75rem">
+          Probability of retention over the next 36 months
+        </p>
+        <div style="position:relative;height:130px">
+          <canvas id="survivalChart"></canvas>
+        </div>
+        <div class="info-box d-flex align-items-center gap-3 mt-3">
+          <i class="fas fa-hourglass-half fa-lg" style="color:var(--amber)"></i>
+          <div>
+            <div class="ib-lbl">Estimated churn window</div>
+            <div class="ib-val" style="color:{{ 'var(--red)' if result.is_high_risk else 'var(--green)' }}">{{ result.churn_window }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 ── CLV -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <i class="fas fa-indian-rupee-sign me-2" style="color:var(--green)"></i>Customer Lifetime Value (CLV)
+      </div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <div class="info-box text-center">
+              <div class="ib-lbl">Expected CLV</div>
+              <div style="font-size:1.6rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--blue);letter-spacing:-1px">
+                ₹{{ "{:,}".format(result.clv.expected_clv_inr) }}
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="info-box text-center">
+              <div class="ib-lbl">Monthly Revenue</div>
+              <div style="font-size:1.6rem;font-weight:800;font-family:'DM Mono',monospace;letter-spacing:-1px">
+                ₹{{ "{:,}".format(result.clv.monthly_inr) }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="section-lbl">Priority Matrix</div>
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr><th>Customer</th><th>Churn Risk</th><th>Expected CLV</th><th>Priority</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>This customer</strong></td>
+              <td>
+                <span class="badge-pill {{ 'bp-red' if result.is_high_risk else 'bp-green' }}">{{ result.risk_pct }}%</span>
+              </td>
+              <td>₹{{ "{:,}".format(result.clv.expected_clv_inr) }}</td>
+              <td>
+                <span class="badge-pill
+                  {% if result.clv.priority=='Critical' %}bp-red
+                  {% elif result.clv.priority=='High' %}bp-blue
+                  {% elif result.clv.priority=='Medium' %}bp-amber
+                  {% else %}bp-green{% endif %}">
+                  {{ result.clv.priority }}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td>Segment average</td>
+              <td><span class="badge-pill bp-amber">41%</span></td>
+              <td>₹2,36,000</td>
+              <td><span class="badge-pill bp-amber">Medium</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 5 ── Recommendations -->
+    <div class="card">
+      <div class="card-header">
+        <i class="fas fa-lightbulb me-2" style="color:var(--amber)"></i>Retention Recommendations
+      </div>
+      <div class="card-body">
+        {% for rec in result.recommendations %}
+        <div class="rec-item {{ rec.level }}">
+          {{ rec.text }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% else %}
+    <!-- Placeholder -->
+    <div class="card" style="padding:3rem 2rem;text-align:center;border-style:dashed;box-shadow:none">
+      <div style="width:64px;height:64px;background:var(--blue-lt);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem">
+        <i class="fas fa-brain fa-xl" style="color:var(--blue)"></i>
+      </div>
+      <h5 style="font-weight:700;margin-bottom:.5rem">Fill the form to get a prediction</h5>
+      <p style="color:var(--text2);font-size:.875rem;margin:0">Enter customer details on the left and click <strong>Run Prediction</strong></p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('predictionForm').addEventListener('submit', function() {
+  const btn = document.getElementById('submitBtn');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Predicting...';
+  btn.disabled = true;
+});
+
+{% if result and not result.error %}
+const survivalData = {{ result.survival | tojson }};
+new Chart(document.getElementById('survivalChart'), {
+  type: 'line',
+  data: {
+    labels:   survivalData.map(d => d.month + 'm'),
+    datasets: [{
+      data:            survivalData.map(d => d.retention),
+      borderColor:     '{{ "#dc2626" if result.is_high_risk else "#16a34a" }}',
+      backgroundColor: '{{ "rgba(220,38,38,.08)" if result.is_high_risk else "rgba(22,163,74,.08)" }}',
+      fill: true, tension: 0.4, pointRadius: 5,
+      pointBackgroundColor: '{{ "#dc2626" if result.is_high_risk else "#16a34a" }}',
+      pointBorderColor: '#fff', pointBorderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.07)' }, ticks: { color: '#5a6a9a', font: { size: 10, family: "'Plus Jakarta Sans'" } } },
+      y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.07)' },
+           ticks: { color: '#5a6a9a', font: { size: 10 }, callback: v => v + '%' } }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

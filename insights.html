@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Insights — Telecom Churn Predictor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-chart-pie me-2" style="color:var(--blue)"></i>Churn Analytics &amp; Insights</h1>
+  <p>Interactive visualisations from the Telco Customer dataset</p>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  {% set cards = [
+    ('fa-calendar-alt',       'var(--blue)',   'var(--blue-lt)',  'Avg. Tenure',       summary.avg_tenure|string ~ ' months'),
+    ('fa-indian-rupee-sign',  'var(--green)',  'var(--green-lt)', 'Avg. Monthly Rev.', '₹' ~ summary.avg_monthly_inr|int|string),
+    ('fa-file-contract',      'var(--amber)',  'var(--amber-lt)', 'Month-to-Month',    summary.mtm_pct|string ~ '%'),
+    ('fa-credit-card',        'var(--red)',    'var(--red-lt)',   'Electronic Check',  summary.echeck_pct|string ~ '%'),
+  ] %}
+  {% for icon, color, bg, label, val in cards %}
+  <div class="col-6 col-md-3">
+    <div class="card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div style="background:{{ bg }};color:{{ color }};width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="fas {{ icon }}"></i>
+        </div>
+        <div>
+          <div style="font-size:.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600">{{ label }}</div>
+          <div style="font-size:1.2rem;font-weight:800;letter-spacing:-.3px">{{ val }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Charts -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="fas fa-bars me-2" style="color:var(--blue)"></i>Churn by Tenure Group</div>
+      <div class="card-body"><div style="position:relative;height:260px"><canvas id="tenureChart"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="fas fa-chart-line me-2" style="color:var(--red)"></i>Churn Rate vs Monthly Charges</div>
+      <div class="card-body"><div style="position:relative;height:260px"><canvas id="chargesChart"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="fas fa-credit-card me-2" style="color:var(--amber)"></i>Churn Rate by Payment Method</div>
+      <div class="card-body"><div style="position:relative;height:260px"><canvas id="paymentChart"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="fas fa-wifi me-2" style="color:var(--green)"></i>Churn by Internet Service</div>
+      <div class="card-body"><div style="position:relative;height:260px"><canvas id="internetChart"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Key findings -->
+<div class="card">
+  <div class="card-header"><i class="fas fa-lightbulb me-2" style="color:var(--amber)"></i>Key Findings</div>
+  <div class="card-body">
+    <div class="row g-4">
+      {% set findings = [
+        ('var(--red)',    'Contract Type',    'Month-to-month customers churn at 42% vs 3% for two-year contracts.'),
+        ('var(--amber)',  'Payment Method',   'Electronic check users churn 3× more than automatic payment users.'),
+        ('var(--green)',  'Add-on Services',  'No online security or tech support strongly correlates with higher churn.'),
+        ('var(--blue)',   'Tenure Effect',    '45% of all churn occurs in the first 12 months of service.'),
+        ('var(--purple)', 'Monthly Charges',  'Higher charges correlate with higher churn — fiber optic users most affected.'),
+        ('var(--red)',    'Fiber Optic',      'Fiber optic customers churn at a significantly higher rate than DSL customers.'),
+      ] %}
+      {% for color, title, text in findings %}
+      <div class="col-md-4">
+        <div class="d-flex gap-3 align-items-start">
+          <div style="width:8px;height:8px;border-radius:50%;background:{{ color }};flex-shrink:0;margin-top:5px"></div>
+          <div>
+            <strong style="font-size:.875rem">{{ title }}</strong>
+            <div style="font-size:.8125rem;color:var(--text2);margin-top:.15rem;line-height:1.5">{{ text }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CD = {{ chart_data | safe }};
+const gridColor  = 'rgba(255,255,255,0.07)';
+const tickStyle  = { color: '#5a6a9a', font: { size: 11, family: "'Plus Jakarta Sans'" } };
+
+new Chart(document.getElementById('tenureChart'), {
+  type: 'bar',
+  data: {
+    labels: CD.tenure.labels,
+    datasets: [
+      { label: 'Churned',  data: CD.tenure.churned,  backgroundColor: 'rgba(220,38,38,.75)',  borderRadius: 5 },
+      { label: 'Retained', data: CD.tenure.retained, backgroundColor: 'rgba(22,163,74,.55)',  borderRadius: 5 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#a8b4d8', boxWidth: 10, font: { size: 11 } } } },
+    scales: {
+      x: { stacked: true, grid: { color: gridColor }, ticks: tickStyle },
+      y: { stacked: true, grid: { color: gridColor }, ticks: tickStyle }
+    }
+  }
+});
+
+new Chart(document.getElementById('chargesChart'), {
+  type: 'line',
+  data: {
+    labels: CD.charges.labels,
+    datasets: [{
+      label: 'Churn rate %', data: CD.charges.churn_rate,
+      borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,.07)',
+      fill: true, tension: 0.4, pointRadius: 5,
+      pointBackgroundColor: '#dc2626', pointBorderColor: '#fff', pointBorderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#a8b4d8', boxWidth: 10, font: { size: 11 } } } },
+    scales: {
+      x: { grid: { color: gridColor }, ticks: tickStyle },
+      y: { grid: { color: gridColor }, ticks: { ...tickStyle, callback: v => v + '%' } }
+    }
+  }
+});
+
+new Chart(document.getElementById('paymentChart'), {
+  type: 'bar',
+  data: {
+    labels: CD.payment.labels,
+    datasets: [{
+      label: 'Churn %', data: CD.payment.churn_rate,
+      backgroundColor: ['rgba(220,38,38,.8)','rgba(217,119,6,.7)','rgba(22,163,74,.7)','rgba(22,163,74,.7)'],
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: gridColor }, ticks: tickStyle },
+      y: { grid: { color: gridColor }, ticks: { ...tickStyle, callback: v => v + '%' } }
+    }
+  }
+});
+
+new Chart(document.getElementById('internetChart'), {
+  type: 'doughnut',
+  data: {
+    labels: CD.internet.labels,
+    datasets: [{
+      data: CD.internet.churn_rate,
+      backgroundColor: ['rgba(220,38,38,.85)', 'rgba(217,119,6,.75)', 'rgba(37,99,235,.65)'],
+      borderColor: '#ffffff', borderWidth: 3, hoverOffset: 8,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { color: '#a8b4d8', boxWidth: 10, font: { size: 11 }, padding: 16 } } }
+  }
+});
+</script>
+{% endblock %}
